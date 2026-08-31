@@ -1,0 +1,22 @@
+{
+  "name": "com.r2f.avatar-blendshape-utility",
+  "displayName": "Avatar Blendshape Utility",
+  "version": "1.0.0",
+  "unity": "2022.3",
+  "description": "A multilingual Unity Editor utility for previewing, editing, saving and exporting avatar blendshape values.",
+  "author": {
+    "name": "鱼",
+    "email": "R2F1007@users.noreply.github.com",
+    "url": "https://github.com/R2F1007"
+  },
+  "license": "Proprietary",
+  "keywords": [
+    "avatar",
+    "blendshape",
+    "editor",
+    "vrchat"
+  ],
+  "legacyFiles": {
+    "Assets/Editor/Avatar_Blendshape_Utility.cs": "0bebe23723a9560458009111279f3cdf"
+  }
+}
