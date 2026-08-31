@@ -62,6 +62,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Keep the repository source name concise in VCC
+      - name: Set VPM Repository Name
+        run: |
+          jq '.name = "R2F"' "${{ env.listPublishDirectory }}/index.json" > "${{ env.listPublishDirectory }}/index.tmp.json"
+          mv "${{ env.listPublishDirectory }}/index.tmp.json" "${{ env.listPublishDirectory }}/index.json"
+
       # Prepare for GitHub Pages deployment
       - name: Setup Pages
         uses: actions/configure-pages@v5
