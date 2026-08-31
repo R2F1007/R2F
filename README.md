@@ -1,6 +1,6 @@
 # Avatar Blendshape Utility
 
-`R2F` is the VPM repository for **Avatar Blendshape Utility**, a Unity Editor tool for browsing, previewing, editing, saving and exporting avatar blendshape values.
+`R2F` is the VPM repository.
 
 
 ## License
