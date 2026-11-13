@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -82,6 +82,10 @@ public class VRCFaceModifierWindow : EditorWindow
         { "Info", new[] { "Info", "情報", "정보", "提示" } },
         { "NoModel", new[] { "Valid model not found, cannot export!", "有効なモデルが見つかりません。エクスポートできません！", "유효한 모델을 찾을 수 없어 내보낼 수 없습니다!", "未找到有效的模型对象，无法导出动画！" } },
         { "OK", new[] { "OK", "OK", "확인", "确定" } },
+        { "ExportScope", new[] { "Choose which blendshapes to include in the animation.", "アニメーションに含めるシェイプキーを選択してください。", "애니메이션에 포함할 블렌드셰이프를 선택하세요.", "请选择动画文件包含的形态键范围。" } },
+        { "ExportNonZero", new[] { "Non-zero only", "0以外のみ", "0이 아닌 값만", "① 只导出非零形态键" } },
+        { "ExportAll", new[] { "All (including zero)", "全て（0を含む）", "모두 (0 포함)", "② 导出所有形态键（含零值）" } },
+        { "CancelExport", new[] { "Cancel", "キャンセル", "취소", "取消" } },
         { "ExportTitle", new[] { "Export Animation", "アニメーションをエクスポート", "애니메이션 내보내기", "导出表情动画" } },
         { "SelectPath", new[] { "Select save path", "保存先を選択", "저장 경로 선택", "选择保存动画文件的路径" } },
         { "AllZero", new[] { "All blendshapes are 0, exported animation has no motion.", "全ての数値が0です。アニメーションに動きがありません。", "모든 블렌드쉐이프가 0이므로 내보낸 애니메이션에 움직임이 없습니다.", "当前形态键数值全为 0，导出的动画文件没有任何动作。" } },
@@ -134,6 +138,7 @@ public class VRCFaceModifierWindow : EditorWindow
     private GameObject previewInstance;
     private SkinnedMeshRenderer previewFaceSMR;
     private RenderTexture sceneViewRenderTexture;
+    private Camera sceneMirrorCamera;
 
     private Vector2 camRotation = new Vector2(0, 180f);
     private Vector3 camTargetPivot = Vector3.zero;
@@ -255,6 +260,11 @@ public class VRCFaceModifierWindow : EditorWindow
         CleanPreviewUtility();
         CleanPreviewInstance();
         CleanSceneViewRenderTexture();
+        if (sceneMirrorCamera != null)
+        {
+            DestroyImmediate(sceneMirrorCamera.gameObject);
+            sceneMirrorCamera = null;
+        }
         DestroyThemeTextures();
     }
 
@@ -1431,8 +1441,17 @@ public class VRCFaceModifierWindow : EditorWindow
                 const float sliderControlGap = 4f;
                 const float minimumSliderTrackWidth = 20f;
 
+                // Extra row width belongs to the name, keeping the slider usable
+                // without stretching it indefinitely as the list panel grows.
+                const float preferredSliderTrackWidth = 160f;
                 float sliderControlsLeft = Mathf.Min(
-                    rowRect.x + 142f,
+                    Mathf.Max(
+                        rowRect.x + 142f,
+                        sliderControlsRight -
+                        stepButtonWidth * 2f -
+                        sliderControlGap * 2f -
+                        preferredSliderTrackWidth
+                    ),
                     sliderControlsRight -
                     stepButtonWidth * 2f -
                     sliderControlGap * 2f -
@@ -2171,33 +2190,23 @@ public class VRCFaceModifierWindow : EditorWindow
                 textureHeight
             );
 
-            RenderTexture previousTargetTexture =
-                sceneCamera.targetTexture;
+            // Never render through or assign properties back to the SceneView camera.
+            // Restoring camera.aspect pins an explicit aspect ratio, preventing the
+            // SceneView from adapting correctly when its docked window is resized.
+            if (sceneMirrorCamera == null)
+            {
+                var cameraObject = new GameObject("Avatar Blendshape Preview Camera")
+                {
+                    hideFlags = HideFlags.HideAndDontSave
+                };
+                sceneMirrorCamera = cameraObject.AddComponent<Camera>();
+            }
 
-            RenderTexture previousActiveTexture =
-                RenderTexture.active;
-
-            Vector3 previousCameraPosition =
-                sceneCamera.transform.position;
-
-            Quaternion previousCameraRotation =
-                sceneCamera.transform.rotation;
-
-            float previousAspect = sceneCamera.aspect;
-            float previousFieldOfView =
-                sceneCamera.fieldOfView;
-
-            float previousNearClipPlane =
-                sceneCamera.nearClipPlane;
-
-            float previousFarClipPlane =
-                sceneCamera.farClipPlane;
-
-            bool previousOrthographic =
-                sceneCamera.orthographic;
-
-            float previousOrthographicSize =
-                sceneCamera.orthographicSize;
+            sceneMirrorCamera.CopyFrom(sceneCamera);
+            sceneMirrorCamera.enabled = false;
+            sceneMirrorCamera.ResetWorldToCameraMatrix();
+            sceneMirrorCamera.ResetProjectionMatrix();
+            RenderTexture previousActiveTexture = RenderTexture.active;
 
             try
             {
@@ -2243,65 +2252,41 @@ public class VRCFaceModifierWindow : EditorWindow
                     Vector3.forward *
                     worldDistance;
 
-                sceneCamera.transform.SetPositionAndRotation(
+                sceneMirrorCamera.transform.SetPositionAndRotation(
                     worldCameraPosition,
                     worldCameraRotation
                 );
 
-                sceneCamera.targetTexture =
+                sceneMirrorCamera.targetTexture =
                     sceneViewRenderTexture;
 
-                sceneCamera.aspect =
+                sceneMirrorCamera.aspect =
                     rect.width /
                     Mathf.Max(1f, rect.height);
 
-                sceneCamera.fieldOfView =
+                sceneMirrorCamera.fieldOfView =
                     PreviewCameraFieldOfView;
 
-                sceneCamera.orthographic = false;
+                sceneMirrorCamera.orthographic = false;
 
-                sceneCamera.nearClipPlane =
+                sceneMirrorCamera.nearClipPlane =
                     Mathf.Max(
                         0.0001f,
                         worldDistance * 0.001f
                     );
 
-                sceneCamera.farClipPlane =
+                sceneMirrorCamera.farClipPlane =
                     Mathf.Max(
-                        previousFarClipPlane,
+                        sceneCamera.farClipPlane,
                         worldDistance * 20f
                     );
 
-                sceneCamera.Render();
+                sceneMirrorCamera.Render();
             }
             finally
             {
-                sceneCamera.transform.SetPositionAndRotation(
-                    previousCameraPosition,
-                    previousCameraRotation
-                );
-
-                sceneCamera.targetTexture =
-                    previousTargetTexture;
-
-                sceneCamera.aspect = previousAspect;
-                sceneCamera.fieldOfView =
-                    previousFieldOfView;
-
-                sceneCamera.nearClipPlane =
-                    previousNearClipPlane;
-
-                sceneCamera.farClipPlane =
-                    previousFarClipPlane;
-
-                sceneCamera.orthographic =
-                    previousOrthographic;
-
-                sceneCamera.orthographicSize =
-                    previousOrthographicSize;
-
-                RenderTexture.active =
-                    previousActiveTexture;
+                sceneMirrorCamera.targetTexture = null;
+                RenderTexture.active = previousActiveTexture;
             }
         }
 
@@ -3601,6 +3586,17 @@ public class VRCFaceModifierWindow : EditorWindow
             return;
         }
 
+        int exportScope = EditorUtility.DisplayDialogComplex(
+            GetText("ExportTitle"),
+            GetText("ExportScope"),
+            GetText("ExportNonZero"),
+            GetText("CancelExport"),
+            GetText("ExportAll")
+        );
+
+        if (exportScope == 1) return;
+        bool includeZeroValues = exportScope == 2;
+
         string savePath =
             EditorUtility.SaveFilePanelInProject(
                 GetText("ExportTitle"),
@@ -3627,7 +3623,7 @@ public class VRCFaceModifierWindow : EditorWindow
         {
             float value = blendShapeValues[i];
 
-            if (Mathf.Abs(value) > 0.001f)
+            if (includeZeroValues || Mathf.Abs(value) > 0.001f)
             {
                 AnimationCurve curve =
                     AnimationCurve.Constant(
